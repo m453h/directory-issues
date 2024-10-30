@@ -2,6 +2,11 @@ from issues import IssueBase
 from typing import TypeVar, Tuple, Generic, Type, Dict, Callable, List, Any
 
 
+"""
+
+Demo methods implimenting issue detection on Strings
+"""
+
 class StringIssue(IssueBase[str]):
     _ISSUES: Dict[str, Type["StringIssue"]] = {}
 
@@ -41,8 +46,11 @@ class NoAIssue(StringIssue):
         return f"{self.result['value']} does not contain the letter 'a'"
 
 
+"""
+Demo methods implimenting issue detection on Integers, including a 'breaking' issue
+to demonstrate error catching behavior
 
-
+"""
 
 
 class IntIssue(IssueBase[int]):
