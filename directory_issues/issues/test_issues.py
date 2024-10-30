@@ -49,7 +49,6 @@ class NoAIssue(StringIssue):
 """
 Demo methods implimenting issue detection on Integers, including a 'breaking' issue
 to demonstrate error catching behavior
-
 """
 
 
