@@ -1,3 +1,5 @@
 private_ipynb/
 .ipynb_checkpoints
+.DS_STORE
+venv/
 __pycache__

@@ -1,29 +1,18 @@
-from issues import IssueBase
+from . import IssueBase
 from typing import TypeVar, Tuple, Generic, Type, Dict, Callable, List, Any
 import datetime as dt
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from collections import defaultdict
-from ..classes import Source
+
+from ..classes import SourcePayload
 
 
-###Eventually manage this via pkg_resources
-import os
-template_dir = os.path.join(os.path.dirname(__file__), 'templates')
-
-jinja_env = Environment(
-    loader=FileSystemLoader(template_dir),
-    autoescape=select_autoescape()
-)
-
-
-class SourceIssue(IssueBase["Source"]):
-    _ISSUES: Dict[str, Type["Source"]] = {}
+class SourceIssue(IssueBase["SourcePayload"]):
+    _ISSUES: Dict[str, Type["SourcePayload"]] = {}
 
 
 @SourceIssue.register("USS-*-Prefix", tags=["url_search_string"])
 class USSPrefix(SourceIssue):   
 
-    def calculate(self, payload:Source):
+    def calculate(self, payload:SourcePayload):
         if payload.url_search_string[0] == '*':
             return True, None
         
@@ -36,7 +25,7 @@ class USSPrefix(SourceIssue):
 @SourceIssue.register("USS-HTTP-Prefix", tags=["url_search_string"])
 class HTTPPrefix(SourceIssue):
 
-    def calculate(self, payload):
+    def calculate(self, payload:SourcePayload):
         if payload.url_search_string.startswith("https"):
             return True, {"scheme": 'https'}
 
@@ -52,7 +41,7 @@ class HTTPPrefix(SourceIssue):
 @SourceIssue.register("USS-*-Postfix", tags=["url_search_string"])
 class USSPostfix(SourceIssue):
 
-    def calculate(self, payload):
+    def calculate(self, payload:SourcePayload):
         if payload.url_search_string[-1] != "*":
             return True, None
         return False, None
@@ -64,7 +53,7 @@ class USSPostfix(SourceIssue):
 @SourceIssue.register("Empty-USS", tags=["url_search_string"])
 class EmptyUSS(SourceIssue):
 
-    def calculate(self, payload):
+    def calculate(self, payload:SourcePayload):
         
         if payload.url_search_string == "":
             return True, None
@@ -78,7 +67,7 @@ class EmptyUSS(SourceIssue):
 @SourceIssue.register("bad-name", tags=["name"])
 class BadName(SourceIssue):
 
-    def calculate(self, payload):
+    def calculate(self, payload:SourcePayload):
         if " " in payload.name or "." not in payload.name:
             return True, {'name': payload.name}
 

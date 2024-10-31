@@ -1,27 +1,25 @@
-from issues.source_issues import SourceIssue
+from .issues.source_issues import SourceIssue
+from .classes import SourcePayload
+from collections import defaultdict
+import datetime as dt 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+###Eventually manage this via pkg_resources
+import os
+template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+
+jinja_env = Environment(
+    loader=FileSystemLoader(template_dir),
+    autoescape=select_autoescape()
+)
 
 
 class Source():
     
     def __init__(self, data: dict):
-        self.id: int = data.get("id")
-        self.name: str = data.get("name")
-        self.url_search_string: str = data.get("url_search_string")
-        self.label: str = data.get("label")
-        self.homepage: str = data.get("homepage")
-        self.notes: Optional[str] = data.get("notes")
-        self.platform: str = data.get("platform")
-        self.stories_per_week: int = data.get("stories_per_week")
-        self.first_story: Optional[str] = data.get("first_story")
-        self.created_at: datetime = dt.datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
-        self.modified_at: datetime = dt.datetime.fromisoformat(data["modified_at"].replace("Z", "+00:00"))
-        self.pub_country: str = data.get("pub_country")
-        self.pub_state: str = data.get("pub_state")
-        self.primary_language: Optional[str] = data.get("primary_language")
-        self.media_type: str = data.get("media_type")
-        self.collection_count: int = data.get("collection_count")
+        self.source_data = SourcePayload(data)
 
-        self.link = f"https://search.mediacloud.org/sources/{self.id}"
+        self.link = f"https://search.mediacloud.org/sources/{self.source_data.id}"
         
         #This will also contain a mechanism for searching against this source to get a volume over time value
         #which can also be used as a metric input
@@ -29,10 +27,10 @@ class Source():
         self.issues = None
 
     def __repr__(self):
-        return f"Source({self.name}, {self.homepage})"
+        return f"Source({self.source_data.name}, {self.source_data.homepage})"
 
     def find_issues(self, include_tags=None, exclude_tags=None):
-        self.issues = SourceIssue.calculate_all(self, include_tags=include_tags, exclude_tags=exclude_tags)
+        self.issues = SourceIssue.calculate_all(self.source_data, include_tags=include_tags, exclude_tags=exclude_tags)
 
         grouped_issues = defaultdict(list)
         for issue in self.issues:
@@ -48,5 +46,9 @@ class Source():
 
         source_message_template = jinja_env.get_template("source_issues_message.j2")
 
-        source_message = source_message_template.render(source=self, run_date=datestr)
+        source_message = source_message_template.render(
+            source=self.source_data, 
+            run_date=datestr,
+            link=self.link, 
+            issues=self.grouped_issues)
         return source_message

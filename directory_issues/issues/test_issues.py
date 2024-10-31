@@ -1,9 +1,8 @@
-from issues import IssueBase
+from . import IssueBase
 from typing import TypeVar, Tuple, Generic, Type, Dict, Callable, List, Any
 
 
 """
-
 Demo methods implimenting issue detection on Strings
 """
 

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "directory_issues"
+version="v0.1b"
+dependencies = [
+  "Jinja2==3.1.2",
+  "pydantic_settings==2.6.0",
+  "zammad_py==3.0.0"
+]
+
+requires-python = ">=3.10"
+authors = [
+  {name = "Paige Gulley", email = "pgulley@mediacloud.org"}
+]
+
+description = "A module for centralizing issue detection and reporting logic for entries in the mediacloud archive directory"
+readme = "README.md"

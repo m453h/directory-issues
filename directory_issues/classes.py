@@ -1,6 +1,6 @@
-from typing import TypeVar, Tuple, Generic, Type, Dict, Callable, List, Any
+import datetime as dt
 
-class Source():
+class SourcePayload():
     
     def __init__(self, data: dict):
         self.id: int = data.get("id")
@@ -19,9 +19,3 @@ class Source():
         self.primary_language: Optional[str] = data.get("primary_language")
         self.media_type: str = data.get("media_type")
         self.collection_count: int = data.get("collection_count")
-
-        self.link = f"https://search.mediacloud.org/sources/{self.id}"
-        
-    
-    def __repr__(self):
-        return f"Source({self.name}, {self.homepage})"
