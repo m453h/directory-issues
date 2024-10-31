@@ -69,7 +69,7 @@ class IssueBase(Generic[T]):
                         "tags": issue_cls._tags
                     })
             except Exception as e:
-                logger.error(f"Error calculating issue {issue_name} for payload {payload}: {str(e)}", exc_info=True)
+                logger.warn(f"Error calculating issue {issue_name} for payload {payload}: {str(e)}", exc_info=True)
                 results.append({
                     "issue_name": issue_name,
                     "tags": issue_cls._tags,

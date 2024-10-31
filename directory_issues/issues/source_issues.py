@@ -13,7 +13,7 @@ class SourceIssue(IssueBase["SourcePayload"]):
 class USSPrefix(SourceIssue):   
 
     def calculate(self, payload:SourcePayload):
-        if payload.url_search_string[0] == '*':
+        if payload.url_search_string != None and payload.url_search_string[0] == '*':
             return True, None
         
         return False, None
@@ -26,6 +26,9 @@ class USSPrefix(SourceIssue):
 class HTTPPrefix(SourceIssue):
 
     def calculate(self, payload:SourcePayload):
+        if payload.url_search_string == None:
+            return False, None
+
         if payload.url_search_string.startswith("https"):
             return True, {"scheme": 'https'}
 
@@ -42,7 +45,7 @@ class HTTPPrefix(SourceIssue):
 class USSPostfix(SourceIssue):
 
     def calculate(self, payload:SourcePayload):
-        if payload.url_search_string[-1] != "*":
+        if payload.url_search_string != None and payload.url_search_string[-1] != "*":
             return True, None
         return False, None
 
@@ -54,8 +57,7 @@ class USSPostfix(SourceIssue):
 class EmptyUSS(SourceIssue):
 
     def calculate(self, payload:SourcePayload):
-        
-        if payload.url_search_string == "":
+        if payload.url_search_string != None and payload.url_search_string == "":
             return True, None
 
         return False, None

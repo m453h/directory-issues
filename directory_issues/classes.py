@@ -1,6 +1,9 @@
 import datetime as dt
 
 class SourcePayload():
+    """
+    Data type for a Source
+    """
     
     def __init__(self, data: dict):
         self.id: int = data.get("id")
@@ -19,3 +22,20 @@ class SourcePayload():
         self.primary_language: Optional[str] = data.get("primary_language")
         self.media_type: str = data.get("media_type")
         self.collection_count: int = data.get("collection_count")
+
+class SourceVolumePayload():
+    """
+    Data type for a source volume summary- count-over-time and count
+    """
+    def __init__(self, data):
+        pass
+
+
+class CollectionPayload():
+    """
+    Data type for a Collection
+    """
+    def __init__(self, data:dict):
+        pass
+
+
