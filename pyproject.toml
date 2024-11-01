@@ -8,7 +8,8 @@ version="v0.1b"
 dependencies = [
   "Jinja2==3.1.2",
   "pydantic_settings==2.6.0",
-  "zammad_py==3.0.0"
+  "zammad_py==3.0.0",
+  "mediacloud==4.2.0"
 ]
 
 requires-python = ">=3.10"

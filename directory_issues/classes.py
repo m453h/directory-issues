@@ -23,12 +23,20 @@ class SourcePayload():
         self.media_type: str = data.get("media_type")
         self.collection_count: int = data.get("collection_count")
 
+    def __repr__(self):
+        return f"SourcePayload({self.name})"
+
 class SourceVolumePayload():
     """
-    Data type for a source volume summary- count-over-time and count
+    Data type for a source volume summary. count-over-time and count
     """
-    def __init__(self, data):
-        pass
+    def __init__(self, data: dict):
+        self.recent_volume = data.get("recent_volume")
+        self.recent_histogram = data.get("recent_histogram")
+        self.total_volume = data.get("total_volume")
+
+    def __repr__(self):
+        return f'SourceVolume({self.total_volume} stories)'
 
 
 class CollectionPayload():
@@ -36,6 +44,16 @@ class CollectionPayload():
     Data type for a Collection
     """
     def __init__(self, data:dict):
-        pass
+        self.id = data.get('id')
+        self.name = data.get('name')
+        self.notes = data.get('notes')
+        self.platform = data.get('platform')
+        self.source_count = data.get('source_count')
+        self.public = data.get('public')
+        self.featured = data.get('featured')
+        self.managed = data.get('managed')
+
+    def __repr__(self):
+        return f"CollectionPayload({self.name})"
 
 
