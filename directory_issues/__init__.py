@@ -35,15 +35,14 @@ class Source():
         return Source(source, skip_volume=skip_volume)
 
     def __init__(self, data: dict, skip_volume: bool = True):
-        #NB- we have no mediacloud directory .get_source(id)- 
+        
         self.source_data = SourcePayload(data)
         if(not skip_volume):
             self.source_volume = self.get_source_volume()
         else:
             self.source_volume = None
 
-        #This will also contain a mechanism for searching against this source to get a volume over time value
-        #which can also be used as a metric input- probably against a source_volume_payload?
+    
 
         self.source_issues = None
 
