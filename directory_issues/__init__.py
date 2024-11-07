@@ -1,10 +1,15 @@
 from .issues.source_issues import SourceIssue
 from .classes import SourcePayload, SourceVolumePayload, CollectionPayload
+from .clients.zammad_client import ZammadClient
 from collections import defaultdict
 import datetime as dt 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic_settings import BaseSettings
 import mediacloud.api as mc_api
+import logging
+
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
 
 ###Eventually manage this via pkg_resources
 import os
@@ -15,6 +20,7 @@ jinja_env = Environment(
     autoescape=select_autoescape()
 )
 
+
 class Config(BaseSettings):
     mc_api_token:str|None=None
     #No collections should have more than this many sources
@@ -22,6 +28,8 @@ class Config(BaseSettings):
     mc_api_limit:int=10000 
 
 config = Config()
+
+zammad_client = ZammadClient()
 
 class Source():
     """
@@ -34,6 +42,7 @@ class Source():
         source = mc_client.source(source_id)
         return Source(source, skip_volume=skip_volume)
 
+
     def __init__(self, data: dict, skip_volume: bool = True):
         
         self.source_data = SourcePayload(data)
@@ -44,14 +53,16 @@ class Source():
 
         self.collections = self.get_source_collections()
 
-        self.source_issues = None
+        self.source_issues = []
 
     def __repr__(self):
         return f"Source({self.source_data.name}, {self.source_data.homepage})"
 
+
     def get_source_collections(self):
         mc_client = mc_api.DirectoryApi(config.mc_api_token)
         return mc_client.collection_list(source_id=self.source_data.id)["results"]
+
 
     def get_source_volume(self):
         mc_client = mc_api.SearchApi(config.mc_api_token)
@@ -69,7 +80,6 @@ class Source():
         total_count = mc_client.story_count("*", years_ago, today, source_ids=[self.source_data.id])
         volumes["total_volume"] = total_count["total"]
         return SourceVolumePayload(volumes)
-
 
 
     def find_issues(self, include_tags=None, exclude_tags=None):
@@ -99,6 +109,22 @@ class Source():
             issues=grouped_issues)
 
         return source_message
+
+
+    def post_zammad_issue(self, send_email=False):
+        message = self.render_template()
+        if(len(self.source_issues) == 0):
+            logger.info(f"Skipping source {self.source_data.id}, no issues detected")
+            return 
+
+        collections_str = ", ".join(str(c["id"]) for c in self.collections)
+        zammad_client.source_article(
+                message,
+                self.source_data.label,
+                self.source_data.id,
+                collections_str,
+                send_email = send_email
+            )
 
 
 class Collection():

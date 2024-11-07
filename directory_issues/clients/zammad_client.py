@@ -22,12 +22,14 @@ class ZammadClient():
             article_message:str,  
             ticket_title:str,
             source_id:int,
-            collections:list=[],
+            collections:str,
             send_email:bool=False):
         """
         Create a new ticket for a source
+        #NB: source_article should be preferred when generating issues
+        # rather than proliferating tickets, keep successive updates in the same ticket
+        # at least for now
         """
-        collections = ", ".join(str(i) for i in  collections)
         params = {
             "title": ticket_title,
             "group": config.default_zammad_group,
@@ -47,10 +49,49 @@ class ZammadClient():
         response = self.client.ticket.create(params=params)
         return response
 
-    ##Ideally we actually do a bunch of stuff here.
-    ## Check if a ticket already exists, is it open, etc
-    ## decide whether to append to it or otherwise. 
-    ## Render out the content of the source
-    ## make a ticket!
+    def source_article(self, 
+            article_message:str,
+            article_title:str,
+            source_id:int,
+            collections:str,
+            send_email:bool=False,
+            ):
 
-    #
+        #Get the id of the exiting ticket for this source:
+        ticket_page = self.client.ticket.search(f"source:{source_id}")
+        if len(ticket_page) == 0:
+            #If there aint no ticket, make one
+            return self.source_ticket(
+                article_message,
+                article_title,
+                source_id,
+                collections,
+                send_email
+                )
+
+        ticket_id = ticket_page[0]['id']
+
+        params = {
+            "collections":collections, 
+            "article": {
+                "subject": article_title,
+                "body": article_message,
+                "type": "note",
+                "content_type":"text/html",
+                "internal": False
+            },
+            "state":"open", #Always open tickets when adding issues
+            "send_email":send_email
+        }
+        return self.client.ticket.update(id=ticket_id, params=params)
+
+
+    #The only real difference would be the hard-coded tags, so maybe this is redundant?
+    #Gotta demonstrate how the tags thing work still anyway. 
+    def collection_ticket(self,
+        article_message:str,
+        ticket_title:str,
+        collection_id:int,
+        send_email:bool=False):
+        pass
+
