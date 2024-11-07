@@ -22,11 +22,12 @@ class ZammadClient():
             article_message:str,  
             ticket_title:str,
             source_id:int,
-            collections:list=[]):
+            collections:list=[],
+            send_email:bool=False):
         """
         Create a new ticket for a source
         """
-        collections = ",".join(str(i) for i in collections)
+        collections = ", ".join(str(i) for i in  collections)
         params = {
             "title": ticket_title,
             "group": config.default_zammad_group,
@@ -39,7 +40,8 @@ class ZammadClient():
                 "type": "note",
                 "content_type":"text/html",
                 "internal": False
-            }
+            },
+            "send_email":send_email
         }
 
         response = self.client.ticket.create(params=params)
@@ -50,3 +52,5 @@ class ZammadClient():
     ## decide whether to append to it or otherwise. 
     ## Render out the content of the source
     ## make a ticket!
+
+    #

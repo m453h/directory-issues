@@ -42,13 +42,16 @@ class Source():
         else:
             self.source_volume = None
 
-    
+        self.collections = self.get_source_collections()
 
         self.source_issues = None
 
     def __repr__(self):
         return f"Source({self.source_data.name}, {self.source_data.homepage})"
 
+    def get_source_collections(self):
+        mc_client = mc_api.DirectoryApi(config.mc_api_token)
+        return mc_client.collection_list(source_id=self.source_data.id)["results"]
 
     def get_source_volume(self):
         mc_client = mc_api.SearchApi(config.mc_api_token)
@@ -115,6 +118,9 @@ class Collection():
         sources = self.mc_client.source_list(collection_id=self.collection_data.id, limit=config.mc_api_limit)
 
         self.sources = [Source(s) for s in sources["results"]]
+
+        #Hypothetical search link for embedding in a collection ticket. 
+        self.collection_search_string = f"/#search/collections%3A*{self.collection_data.id}"
 
     def find_all_issues(self, include_tags=None, exclude_tags=None):
         for source in self.sources:
