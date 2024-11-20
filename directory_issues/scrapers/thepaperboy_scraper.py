@@ -5,7 +5,6 @@ import cloudscraper
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Comment
 from cloudscraper import CloudScraper
-
 from utils.database import SQLiteMixin
 
 logger = logging.getLogger(__name__)
@@ -15,21 +14,22 @@ logging.basicConfig(level=logging.INFO,
 URLs = {
     "BASE_URL": "https://www.thepaperboy.com/",
     "COUNTRY_LIST": "/newspapers-by-country.cfm",
-    "US_LIST": "/usa-newspapers-by-state.cfm"
+    "US_STATES_LIST": "/usa-newspapers-by-state.cfm"
 }
 
 DELAY = 10
 MAX_RETRIES = 3
+DATABASE_PATH = "output/database/thepaperboy.db"
 
 
 class ThePaperBoyScraper(SQLiteMixin):
     def __init__(self):
         self.db = None
         self.base_url: str = URLs.get("BASE_URL")
-        self.DATABASE_PATH = "output/database/thepaperboy.db"
+        self.DATABASE_PATH = DATABASE_PATH
         self.scraper: CloudScraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows"})
         self.initialize_database()
-        logger.info("Scraper is initialized with base URL [%s]", self.base_url)
+        logger.info("Scraper is initialized with base URL %s", self.base_url)
 
 
 
@@ -38,6 +38,18 @@ class ThePaperBoyScraper(SQLiteMixin):
         self.create_table('countries',{
             'id': 'INTEGER PRIMARY KEY',
             'name': 'TEXT NOT NULL',
+            'url': 'TEXT NOT NULL UNIQUE',
+            'crawl_status': 'TEXT CHECK (crawl_status IN ("pending", "in_progress", "completed")) DEFAULT "pending"',
+            'start_crawl_time': 'TIMESTAMP DEFAULT NULL',
+            'finish_crawl_time': 'TIMESTAMP DEFAULT NULL',
+            'total': 'INTEGER DEFAULT NULL',
+            'last_crawl_time': 'TIMESTAMP DEFAULT NULL'
+        })
+
+        self.create_table('states', {
+            'id': 'INTEGER PRIMARY KEY',
+            'name': 'TEXT NOT NULL',
+            'abbreviation': 'TEXT NOT NULL',
             'url': 'TEXT NOT NULL UNIQUE',
             'crawl_status': 'TEXT CHECK (crawl_status IN ("pending", "in_progress", "completed")) DEFAULT "pending"',
             'start_crawl_time': 'TIMESTAMP DEFAULT NULL',
@@ -73,40 +85,58 @@ class ThePaperBoyScraper(SQLiteMixin):
         logging.error("Max retries reached. Method execution failed.")
         return None
 
-    def __scrape_countries(self):
-        countries_data = []
-        response = self.scraper.get(urljoin(self.base_url, URLs.get("COUNTRY_LIST")))
-        soup = BeautifulSoup(response.text, features="lxml")
-        comments = soup.find_all(string=lambda text: isinstance(text, Comment))
-        for comment in comments:
-            if "START MAIN COLUMN TABLE" in comment:
-                main_table = comment.find_next()
-                tables = main_table.find_all("table")
-                for table in tables:
-                    rows = table.find_all("tr")
-                    for row in rows:
-                        anchors = row.find_all("a")
-                        for anchor in anchors:
-                            href = anchor.get("href")
-                            text = anchor.get_text(strip=True)
-                            if text != "(FP)":
-                                country, total = self.extract_country_totals(text)
-                                if country and total:
-                                    logger.info("Found: href=%s, country=%s, total=%s",
-                                                href, country, total)
-                                    countries_data.append({
-                                        "name": country,
-                                        "url": href,
-                                        "total": total
-                                    })
-                break
-
-        total_records = self.count('countries')
-        if total_records == 0:
-            self.bulk_insert('countries', countries_data)
+    def __scrape_locations(self, level):
+        if level == "states":
+            url = URLs.get("US_STATES_LIST")
+            entry_point = "START MAIN LEFT COLUMN TABLE"
         else:
-            logger.info("Countries already set in database, no further processing is required")
-        return countries_data
+            url = URLs.get("COUNTRY_LIST")
+            entry_point = "START MAIN COLUMN TABLE"
+
+        total_records = self.count(level)
+
+        if total_records == 0:
+            data = []
+            response = self.scraper.get(urljoin(self.base_url, url))
+            soup = BeautifulSoup(response.text, features="lxml")
+            comments = soup.find_all(string=lambda node: isinstance(node, Comment))
+            for comment in comments:
+                if entry_point in comment:
+                    main_table = comment.find_next()
+                    tables = main_table.find_all("table")
+                    for table in tables:
+                        rows = table.find_all("tr")
+                        for row in rows:
+                            anchors = row.find_all("a")
+                            for anchor in anchors:
+                                href = anchor.get("href")
+                                text = anchor.get_text(strip=True)
+                                if text != "(FP)":
+                                    if level == "countries":
+                                        location, total = self.extract_location_totals(text, level)
+                                        if location and total:
+                                            logger.info("Found: href=%s, location=%s, total=%s",
+                                                        href, location, total)
+                                            data.append({
+                                                "name": location,
+                                                "url": href,
+                                                "total": total
+                                            })
+                                    elif level == "states":
+                                        location, abbreviation, total = self.extract_location_totals(text, level)
+                                        data.append({
+                                            "name": location,
+                                            "abbreviation": abbreviation,
+                                            "url": href,
+                                            "total": total
+                                        })
+                    break
+            logger.info("Recording [%s] %s",len(data), level)
+            self.bulk_insert(level, data)
+        else:
+            logger.info("%s already set in database, no further processing is required",level)
+
+        return True
 
     def __scrape_sources_from_specific_location(self, data):
         response = self.scraper.get(urljoin(self.base_url, data.get("url")))
@@ -117,17 +147,30 @@ class ThePaperBoyScraper(SQLiteMixin):
             for comment in comments:
                 if "START MAIN PAPER DISPLAY TABLE" in comment:
                     main_table = comment.find_next()
+                    if data.get("country") == "United States":
+                        no_columns = 3
+                    else:
+                        no_columns = 4
                     rows = main_table.find_all("tr")[1:]
                     for index, row in enumerate(rows, start=1):
                         cells = row.find_all("td")
-                        if len(cells) == 3:
+                        if len(cells) == no_columns:
                             source_link_tag = cells[0].find("a")
                             name = source_link_tag.get_text(strip=True)
                             url = source_link_tag['href']
-                            city = cells[1].find("a", href=True).get_text()
-                            language = cells[2].find("font", class_="smallfont").get_text()
+
+                            # Local sources (USA) have 3 columns, other sources have 4 columns
+                            if no_columns == 4:
+                                city = cells[1].find("a", href=True).get_text()
+                                state = cells[2].find("a", href=True).get_text()
+                                language = cells[3].find("font", class_="smallfont").get_text()
+                            else:
+                                state = data.get("state")
+                                city = cells[1].find("a", href=True).get_text()
+                                language = cells[2].find("font", class_="smallfont").get_text()
+
                             updated_data = self.scrape_source_metadata_with_retry({
-                                "state": data.get("state"),
+                                "state": state,
                                 "country": data.get("country"),
                                 "url": url,
                                 "city": city,
@@ -168,7 +211,11 @@ class ThePaperBoyScraper(SQLiteMixin):
                         break
         return data
 
-    def __scrape_non_us_sources(self, countries):
+    def __scrape_non_us_sources(self):
+        countries =  self.select("countries",
+                                 where="finish_crawl_time IS NULL AND name <> ?",
+                                 params=("United States",)
+                                 )
         for country in countries:
             if country.get("name") == "Tanzania":
                 print(country)
@@ -179,17 +226,29 @@ class ThePaperBoyScraper(SQLiteMixin):
     def scrape_source_from_specific_location_with_retry(self, data):
         return self.scrape_content_with_retry(self.__scrape_sources_from_specific_location, data)
 
-    def scrape_countries_with_retry(self):
-        return self.scrape_content_with_retry(self.__scrape_countries)
+    def scrape_countries(self):
+        return self.scrape_content_with_retry(self.__scrape_locations, "countries")
+
+    def scrape_states(self):
+        return self.scrape_content_with_retry(self.__scrape_locations, "states")
 
     @staticmethod
-    def extract_country_totals(text):
-        pattern = r"(.*?)\s*\((\d+)\)"
-        match = re.search(pattern, text)
-        if match:
-            country = match.group(1).strip()
-            total = int(match.group(2))
-            return country, total
+    def extract_location_totals(text: str, type: str):
+        if type == "countries":
+            pattern = r"(.*?)\s*\((\d+)\)"
+            match = re.search(pattern, text)
+            if match:
+                country = match.group(1).strip()
+                total = int(match.group(2))
+                return country, total
+        elif type == "states":
+            pattern = r"(.*?)\[(.*?)\]\((\d+)\)"
+            match = re.search(pattern, text)
+            if match:
+                state_name = match.group(1).strip()
+                state_abbrev = match.group(2)
+                total = int(match.group(3))
+                return state_name, state_abbrev, total
         return None, None
 
     @staticmethod
@@ -205,11 +264,8 @@ class ThePaperBoyScraper(SQLiteMixin):
         return social_media_info
 
     def main(self):
-        self.scrape_countries_with_retry()
-        pass
-
-
-
+        self.scrape_states()
+        self.scrape_countries()
 
 
 
