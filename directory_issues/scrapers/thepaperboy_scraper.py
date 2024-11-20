@@ -191,8 +191,6 @@ class ThePaperBoyScraper(SQLiteMixin):
 
             logger.info("Recording [%s] sources", len(fetched_data))
             self.bulk_insert("sources", fetched_data, "IGNORE")
-            logging.info("Crawl delay. Waiting for %s seconds before returning results", DELAY)
-            sleep(DELAY)
             return fetched_data
 
     def __scrape_source_metadata(self, data):
@@ -203,7 +201,6 @@ class ThePaperBoyScraper(SQLiteMixin):
                 # Get the link to the actual source website
                 source_final_link = soup.find("h1").find("a")
                 if source_final_link:
-                    has_found_content = True
                     data["url"] = source_final_link.get('href')
 
                 # Get the description of the source (this is mostly present for USA sources)
@@ -241,8 +238,39 @@ class ThePaperBoyScraper(SQLiteMixin):
                 self.update("countries", {"finish_crawl_time": "CURRENT_TIMESTAMP",
                                           "crawl_status": "completed"}, "id = ?",
                             (location.get("id"),))
+                logging.info("Crawl delay. Waiting for %s seconds...", DELAY)
+                sleep(DELAY)
         else:
             logger.info("Sources for all countries have been to be scraped, exiting...")
+
+
+
+        # Grab metadata from the scraped table of sources
+        """countries = self.select("sources",
+                                where="finish_crawl_time IS NULL AND name <> ?",
+                                params=("United States",)
+                                )
+        """
+
+    def scrape_us_sources(self):
+        states = self.select("states", where="finish_crawl_time IS NULL")
+        if len(states) > 0:
+            for location in states:
+                self.update("states", {"start_crawl_time": "CURRENT_TIMESTAMP",
+                                          "crawl_status": "in_progress"}, "id = ?",
+                            (location.get("id"),))
+                logging.info("Starting to scrape sources from: %s", location.get("name"))
+                location["level"] = "state"
+                location["country"] = "United States"
+                if self.scrape_sources_from_specific_location(location):
+                    logger.info("Completed scraping sources from %s",location.get("name"))
+                self.update("states", {"finish_crawl_time": "CURRENT_TIMESTAMP",
+                                          "crawl_status": "completed"}, "id = ?",
+                            (location.get("id"),))
+                logging.info("Crawl delay. Waiting for %s seconds...", DELAY)
+                sleep(DELAY)
+        else:
+            logger.info("Sources for all states have been to be scraped, exiting...")
 
 
 
@@ -300,6 +328,8 @@ class ThePaperBoyScraper(SQLiteMixin):
         self.scrape_states()
         self.scrape_countries()
         self.scrape_non_us_sources()
+        self.scrape_us_sources()
+
 
 
 if __name__ == "__main__":
