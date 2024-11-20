@@ -1,9 +1,9 @@
 import logging
 import sqlite3
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format="%(asctime)s | %(name)s | %(levelname)s: %(message)s")
 
 class SQLiteMixin:
@@ -162,6 +162,74 @@ class SQLiteMixin:
             except sqlite3.Error as e:
                 logger.error(f"Error in select query: {e}")
                 raise
+
+    def count(self,
+              table_name: str,
+              column: str = '*',
+              distinct: bool = False,
+              where: Optional[str] = None,
+              params: Optional[tuple] = None,
+              group_by: Optional[Union[str, List[str]]] = None) -> Union[int, List[Dict[str, Any]]]:
+        """
+        Count records in the specified table with optional filtering and grouping.
+
+        Args:
+            table_name (str): Name of the table
+            column (str): Column to count (default: '*' for all)
+            distinct (bool): Whether to count distinct values only
+            where (Optional[str]): WHERE clause for filtering
+            params (Optional[tuple]): Parameters for the WHERE clause
+            group_by (Optional[Union[str, List[str]]]): Column(s) to group by
+
+        Returns:
+            Union[int, List[Dict[str, Any]]]: Count of records or list of counts per group
+
+        Examples:
+            # Count all records
+            count = Database.count('users')
+
+            # Count distinct values in a column
+            distinct_count = Database.count('users', column='status', distinct=True)
+
+            # Count with condition
+            active_count = Database.count('users', where='status = ?', params=('active',))
+
+            # Count grouped by status
+            status_counts = Database.count('users', group_by='status')
+        """
+        count_expr = f"COUNT({'DISTINCT ' if distinct else ''}{column})"
+
+        if isinstance(group_by, list):
+            group_by = ', '.join(group_by)
+
+        if group_by:
+            query = f"SELECT {group_by}, {count_expr} as count FROM {table_name}"
+        else:
+            query = f"SELECT {count_expr} as count FROM {table_name}"
+
+        if where:
+            query += f" WHERE {where}"
+
+        if group_by:
+            query += f" GROUP BY {group_by}"
+
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+
+            if group_by:
+                result = []
+                for row in cursor.fetchall():
+                    result.append(dict(row))
+                return result
+            else:
+                return cursor.fetchone()['count']
+
 
     def update(self,
                table_name: str,

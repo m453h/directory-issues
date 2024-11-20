@@ -6,6 +6,8 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Comment
 from cloudscraper import CloudScraper
 
+from utils.database import SQLiteMixin
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s | %(name)s | %(levelname)s: %(message)s")
@@ -20,12 +22,29 @@ DELAY = 10
 MAX_RETRIES = 3
 
 
-class ThePaperBoyScraper:
+class ThePaperBoyScraper(SQLiteMixin):
     def __init__(self):
-        self.base_url: str = "https://www.thepaperboy.com/"
+        self.db = None
+        self.base_url: str = URLs.get("BASE_URL")
+        self.DATABASE_PATH = "output/database/thepaperboy.db"
         self.scraper: CloudScraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows"})
-        logger.info("Initialize scraper with base URL [%s]", self.base_url)
+        self.initialize_database()
+        logger.info("Scraper is initialized with base URL [%s]", self.base_url)
 
+
+
+    def initialize_database(self):
+        self.db = self._get_connection()
+        self.create_table('countries',{
+            'id': 'INTEGER PRIMARY KEY',
+            'name': 'TEXT NOT NULL',
+            'url': 'TEXT NOT NULL UNIQUE',
+            'crawl_status': 'TEXT CHECK (crawl_status IN ("pending", "in_progress", "completed")) DEFAULT "pending"',
+            'start_crawl_time': 'TIMESTAMP DEFAULT NULL',
+            'finish_crawl_time': 'TIMESTAMP DEFAULT NULL',
+            'total': 'INTEGER DEFAULT NULL',
+            'last_crawl_time': 'TIMESTAMP DEFAULT NULL'
+        })
 
     def scrape_content_with_retry(self, method, *args, **kwargs):
         """
@@ -71,16 +90,22 @@ class ThePaperBoyScraper:
                             href = anchor.get("href")
                             text = anchor.get_text(strip=True)
                             if text != "(FP)":
-                                country, count = self.extract_country_count(text)
-                                if country and count:
-                                    logger.info("Found: href=%s, country=%s, count=%s",
-                                                href, country, count)
+                                country, total = self.extract_country_totals(text)
+                                if country and total:
+                                    logger.info("Found: href=%s, country=%s, total=%s",
+                                                href, country, total)
                                     countries_data.append({
                                         "name": country,
                                         "url": href,
-                                        "count": count
+                                        "total": total
                                     })
                 break
+
+        total_records = self.count('countries')
+        if total_records == 0:
+            self.bulk_insert('countries', countries_data)
+        else:
+            logger.info("Countries already set in database, no further processing is required")
         return countries_data
 
     def __scrape_sources_from_specific_location(self, data):
@@ -158,13 +183,13 @@ class ThePaperBoyScraper:
         return self.scrape_content_with_retry(self.__scrape_countries)
 
     @staticmethod
-    def extract_country_count(text):
+    def extract_country_totals(text):
         pattern = r"(.*?)\s*\((\d+)\)"
         match = re.search(pattern, text)
         if match:
             country = match.group(1).strip()
-            count = int(match.group(2))
-            return country, count
+            total = int(match.group(2))
+            return country, total
         return None, None
 
     @staticmethod
@@ -180,7 +205,10 @@ class ThePaperBoyScraper:
         return social_media_info
 
     def main(self):
+        self.scrape_countries_with_retry()
         pass
+
+
 
 
 
