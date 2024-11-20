@@ -90,13 +90,16 @@ class SQLiteMixin:
         cursor = self.__execute_query(query, values)
         return cursor.lastrowid
 
-    def bulk_insert(self, table_name: str, data: List[Dict[str, Any]]) -> bool:
+    def bulk_insert(self, table_name: str,
+                    data: List[Dict[str, Any]],
+                    on_duplicates) -> bool:
         """
         Insert multiple records into the specified table.
 
         Args:
             table_name (str): Name of the table
             data (List[Dict[str, Any]]): List of records to insert
+            on_duplicates (str): The conflict resolution strategy to handle duplicate rows during inserts.
 
         Returns:
             bool: True if insert was successful, False otherwise
@@ -106,7 +109,7 @@ class SQLiteMixin:
 
         columns = ', '.join(data[0].keys())
         placeholders = ', '.join(['?'] * len(data[0]))
-        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+        query = f"INSERT OR {on_duplicates} INTO {table_name} ({columns}) VALUES ({placeholders})"
 
         try:
             values_list = []
@@ -249,13 +252,19 @@ class SQLiteMixin:
             int: Number of rows affected
         """
         set_clause_parts = []
-        for key in data.keys():
-            set_clause_parts.append(f"{key} = ?")
+        update_values = []
+
+        for key, value in data.items():
+            if isinstance(value, str) and value.upper() == "CURRENT_TIMESTAMP":
+                set_clause_parts.append(f"{key} = CURRENT_TIMESTAMP")
+            else:
+                set_clause_parts.append(f"{key} = ?")
+                update_values.append(value)
 
         set_clause = ', '.join(set_clause_parts)
-
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where}"
-        update_params = tuple(data.values()) + params
+        update_params = tuple(update_values) + params
+
         cursor = self.__execute_query(query, update_params)
         return cursor.rowcount
 

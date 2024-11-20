@@ -1,3 +1,4 @@
+import json
 import logging
 from time import sleep
 import re
@@ -31,11 +32,9 @@ class ThePaperBoyScraper(SQLiteMixin):
         self.initialize_database()
         logger.info("Scraper is initialized with base URL %s", self.base_url)
 
-
-
     def initialize_database(self):
         self.db = self._get_connection()
-        self.create_table('countries',{
+        self.create_table('countries', {
             'id': 'INTEGER PRIMARY KEY',
             'name': 'TEXT NOT NULL',
             'url': 'TEXT NOT NULL UNIQUE',
@@ -55,6 +54,16 @@ class ThePaperBoyScraper(SQLiteMixin):
             'start_crawl_time': 'TIMESTAMP DEFAULT NULL',
             'finish_crawl_time': 'TIMESTAMP DEFAULT NULL',
             'total': 'INTEGER DEFAULT NULL',
+            'last_crawl_time': 'TIMESTAMP DEFAULT NULL'
+        })
+
+        self.create_table('sources', {
+            'id': 'INTEGER PRIMARY KEY',
+            'url': 'TEXT NOT NULL UNIQUE',
+            'data': 'TEXT NOT NULL UNIQUE',
+            'crawl_status': 'TEXT CHECK (crawl_status IN ("pending", "in_progress", "completed")) DEFAULT "pending"',
+            'start_crawl_time': 'TIMESTAMP DEFAULT NULL',
+            'finish_crawl_time': 'TIMESTAMP DEFAULT NULL',
             'last_crawl_time': 'TIMESTAMP DEFAULT NULL'
         })
 
@@ -131,10 +140,10 @@ class ThePaperBoyScraper(SQLiteMixin):
                                             "total": total
                                         })
                     break
-            logger.info("Recording [%s] %s",len(data), level)
-            self.bulk_insert(level, data)
+            logger.info("Recording [%s] %s", len(data), level)
+            self.bulk_insert(level, data, "IGNORE")
         else:
-            logger.info("%s already set in database, no further processing is required",level)
+            logger.info("%s already set in database, no further processing is required", level)
 
         return True
 
@@ -164,22 +173,26 @@ class ThePaperBoyScraper(SQLiteMixin):
                                 city = cells[1].find("a", href=True).get_text()
                                 state = cells[2].find("a", href=True).get_text()
                                 language = cells[3].find("font", class_="smallfont").get_text()
+                                country = data.get("name")
                             else:
                                 state = data.get("state")
                                 city = cells[1].find("a", href=True).get_text()
                                 language = cells[2].find("font", class_="smallfont").get_text()
+                                country = data.get("country")
 
-                            updated_data = self.scrape_source_metadata_with_retry({
+                            fetched_data.append({"url": url, "data": json.dumps({
                                 "state": state,
-                                "country": data.get("country"),
+                                "country": country,
                                 "url": url,
                                 "city": city,
                                 "language": language,
                                 "name": name
-                            })
-                            fetched_data.append(updated_data)
-                            logger.info("Fetched source %s - %s ", index, name)
-                            sleep(DELAY)
+                            })})
+
+            logger.info("Recording [%s] sources", len(fetched_data))
+            self.bulk_insert("sources", fetched_data, "IGNORE")
+            logging.info("Crawl delay. Waiting for %s seconds before returning results", DELAY)
+            sleep(DELAY)
             return fetched_data
 
     def __scrape_source_metadata(self, data):
@@ -211,19 +224,39 @@ class ThePaperBoyScraper(SQLiteMixin):
                         break
         return data
 
-    def __scrape_non_us_sources(self):
-        countries =  self.select("countries",
-                                 where="finish_crawl_time IS NULL AND name <> ?",
-                                 params=("United States",)
-                                 )
-        for country in countries:
-            if country.get("name") == "Tanzania":
-                print(country)
+    def scrape_non_us_sources(self):
+        countries = self.select("countries",
+                                where="finish_crawl_time IS NULL AND name <> ?",
+                                params=("United States",)
+                                )
+        if len(countries) > 0:
+            for location in countries:
+                self.update("countries", {"start_crawl_time": "CURRENT_TIMESTAMP",
+                                          "crawl_status": "in_progress"}, "id = ?",
+                            (location.get("id"),))
+                logging.info("Starting to scrape sources from: %s", location.get("name"))
+                location["level"] = "country"
+                if self.scrape_sources_from_specific_location(location):
+                    logger.info("Completed scraping sources from %s",location.get("name"))
+                self.update("countries", {"finish_crawl_time": "CURRENT_TIMESTAMP",
+                                          "crawl_status": "completed"}, "id = ?",
+                            (location.get("id"),))
+        else:
+            logger.info("Sources for all countries have been to be scraped, exiting...")
+
+
+
+        # Grab metadata from the scraped table of sources
+        """countries = self.select("sources",
+                                where="finish_crawl_time IS NULL AND name <> ?",
+                                params=("United States",)
+                                )
+        """
 
     def scrape_source_metadata_with_retry(self, data):
         return self.scrape_content_with_retry(self.__scrape_source_metadata, data)
 
-    def scrape_source_from_specific_location_with_retry(self, data):
+    def scrape_sources_from_specific_location(self, data):
         return self.scrape_content_with_retry(self.__scrape_sources_from_specific_location, data)
 
     def scrape_countries(self):
@@ -266,10 +299,9 @@ class ThePaperBoyScraper(SQLiteMixin):
     def main(self):
         self.scrape_states()
         self.scrape_countries()
-
+        self.scrape_non_us_sources()
 
 
 if __name__ == "__main__":
     scraper = ThePaperBoyScraper()
     scraper.main()
-
