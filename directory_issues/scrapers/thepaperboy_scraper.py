@@ -1,5 +1,6 @@
 import json
 import logging
+from itertools import count
 from time import sleep
 import re
 import cloudscraper
@@ -175,7 +176,7 @@ class ThePaperBoyScraper(SQLiteMixin):
                                 language = cells[3].find("font", class_="smallfont").get_text()
                                 country = data.get("name")
                             else:
-                                state = data.get("state")
+                                state = data.get("name")
                                 city = cells[1].find("a", href=True).get_text()
                                 language = cells[2].find("font", class_="smallfont").get_text()
                                 country = data.get("country")
@@ -243,14 +244,38 @@ class ThePaperBoyScraper(SQLiteMixin):
         else:
             logger.info("Sources for all countries have been to be scraped, exiting...")
 
+    def scrape_sources_metadata(self, location_type):
+        if location_type == "local":
+            locations = self.select("states")
+        else:
+            locations = self.select("countries",
+                                    where="name <> ?",
+                                    params=("United States",)
+                                    )
 
+        if len(locations) > 0:
+            for location in locations:
+                logger.info("Scraping sources from %s",location.get("name"))
+                sources = self.select("sources", where="data LIKE ? AND finish_crawl_time IS NULL",
+                                      params = (f"%{location.get('name')}%",))
+                for source in sources:
+                    data = json.loads(source.get("data"))
+                    self.update("sources", {"start_crawl_time": "CURRENT_TIMESTAMP",
+                                            "crawl_status": "in_progress"}, "id = ?",
+                                (source.get("id"),))
+                    updated_data = self.scrape_source_metadata_with_retry(data)
+                    if updated_data:
+                        logger.info("Recorded metadata for %s", data.get("name"))
+                        self.update("sources", {"finish_crawl_time": "CURRENT_TIMESTAMP",
+                                                "crawl_status": "completed", "data": json.dumps(updated_data)}, "id = ?",
+                                    (source.get("id"),))
+                    else:
+                        logger.error("Unable to fetch metadata for %s", data.get("name"))
 
-        # Grab metadata from the scraped table of sources
-        """countries = self.select("sources",
-                                where="finish_crawl_time IS NULL AND name <> ?",
-                                params=("United States",)
-                                )
-        """
+                    logging.info("Crawl delay. Waiting for %s seconds...", DELAY)
+                    sleep(DELAY)
+        else:
+            logger.info("No countries found, exiting...")
 
     def scrape_us_sources(self):
         states = self.select("states", where="finish_crawl_time IS NULL")
@@ -329,8 +354,8 @@ class ThePaperBoyScraper(SQLiteMixin):
         self.scrape_countries()
         self.scrape_non_us_sources()
         self.scrape_us_sources()
-
-
+        self.scrape_sources_metadata("local")
+        self.scrape_sources_metadata("others")
 
 if __name__ == "__main__":
     scraper = ThePaperBoyScraper()
