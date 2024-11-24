@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 import sqlite3
 from typing import List, Dict, Any, Optional, Tuple, Union
 
@@ -25,7 +27,13 @@ class SQLiteMixin:
         """
         if not self.DATABASE_PATH:
             raise ValueError("DATABASE_PATH must be set in the subclass")
+        
         try:
+            db_dir = os.path.dirname(self.DATABASE_PATH)
+            if db_dir:
+                Path(db_dir).mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Created database directory: {db_dir}")
+
             conn = sqlite3.connect(self.DATABASE_PATH)
             logger.debug("Database connection established.")
             return conn
