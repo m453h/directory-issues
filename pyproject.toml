@@ -11,6 +11,9 @@ dependencies = [
   "zammad_py==3.0.0",
   "mediacloud==4.3.0",
   "mediacloud-metadata ~= 1.2.0",
+  "pandas==2.2.3",
+  "lxml==5.1.1",
+  "beautifulsoup4==4.12.3"
 ]
 
 requires-python = ">=3.10"
