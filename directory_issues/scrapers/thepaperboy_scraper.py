@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from time import sleep
 import re
 from urllib.parse import urljoin
@@ -20,7 +21,7 @@ URLs = {
 
 
 DATABASE_PATH = "output/database/thepaperboy.db"
-
+JSON_DUMP_PATH = "output/files"
 
 class ThePaperBoyScraper(SQLiteMixin, BaseScraper):
     def __init__(self):
@@ -30,7 +31,6 @@ class ThePaperBoyScraper(SQLiteMixin, BaseScraper):
         self.DATABASE_PATH = DATABASE_PATH
         self.initialize_database()
         logger.info("Scraper is initialized with base URL %s", self.base_url)
-
 
     def initialize_database(self):
         self.db = self._get_connection()
@@ -287,6 +287,23 @@ class ThePaperBoyScraper(SQLiteMixin, BaseScraper):
     def scrape_states(self):
         return self.scrape_content_with_retry(self.__scrape_locations, "states")
 
+    def export_sources_to_file(self):
+        sources = self.select("sources",
+                                where="crawl_status = ?",
+                                params=("completed",)
+                                )
+        data = []
+        for source in sources:
+            data.append(json.loads(source.get("data")))
+
+        os.makedirs(JSON_DUMP_PATH, exist_ok=True)
+
+        # Write data to JSON file
+        with open(f"{JSON_DUMP_PATH}/the_paperboy_sources.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+        logger.info("Data has been written to file")
+
     @staticmethod
     def extract_location_totals(text: str, location_type: str):
         if location_type == "countries":
@@ -330,6 +347,8 @@ class ThePaperBoyScraper(SQLiteMixin, BaseScraper):
         elif self.data_to_scrape == "us_sources":
             self.scrape_us_sources()
             self.scrape_sources_metadata("local")
+        elif self.data_to_scrape == "export":
+            self.export_sources_to_file()
 
 
 if __name__ == "__main__":
