@@ -19,7 +19,7 @@ URLs = {
     "US_STATES_LIST": "/usa-newspapers-by-state.cfm"
 }
 
-DELAY = 10
+DELAY = 1
 MAX_RETRIES = 3
 DATABASE_PATH = "output/database/thepaperboy.db"
 
@@ -252,7 +252,6 @@ class ThePaperBoyScraper(SQLiteMixin):
                                     where="name <> ?",
                                     params=("United States",)
                                     )
-
         if len(locations) > 0:
             for location in locations:
                 logger.info("Scraping sources from %s",location.get("name"))
@@ -271,9 +270,18 @@ class ThePaperBoyScraper(SQLiteMixin):
                                     (source.get("id"),))
                     else:
                         logger.error("Unable to fetch metadata for %s", data.get("name"))
+                        break
 
                     logging.info("Crawl delay. Waiting for %s seconds...", DELAY)
                     sleep(DELAY)
+
+                if len(sources) > 0:
+                    if not updated_data:
+                        logging.error("Last fetch failed despite retrires, possible network problem exiting loop...")
+                        break
+                else:
+                    logging.info("No pending sources found...")
+
         else:
             logger.info("No countries found, exiting...")
 
