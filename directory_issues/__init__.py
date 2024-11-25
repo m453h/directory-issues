@@ -1,5 +1,7 @@
 from .issues.source_issues import SourceIssue
-from .classes import SourcePayload, SourceVolumePayload, CollectionPayload
+from .issues.source_volume_issues import SourceVolumeIssue
+from .issues.feed_issues import FeedIssue
+from .classes import SourcePayload, SourceVolumePayload, CollectionPayload, FeedPayload
 from .clients.zammad_client import ZammadClient
 from collections import defaultdict
 import datetime as dt 
@@ -52,22 +54,27 @@ class Source():
     """
     
     @classmethod
-    def from_id(cls, source_id:int, skip_volume:bool = False):
+    def from_id(cls, source_id:int, skip_volume:bool = False, skip_feeds: bool = True):
         mc_client = mc_api.DirectoryApi(config.mc_api_token)
         source = mc_client.source(source_id)
-        return Source(source, skip_volume=skip_volume)
+        return Source(source, skip_volume=skip_volume, skip_feeds=skip_feeds)
 
 
-    def __init__(self, data: dict, skip_volume: bool = True):
+    def __init__(self, data: dict, skip_volume: bool = True, skip_feeds: bool = True):
 
         self.source_data = SourcePayload(data)
+
         if(not skip_volume):
             self.source_volume = self.get_source_volume()
         else:
             self.source_volume = None
 
-        self.collections = self.get_source_collections()
+        if(not skip_feeds):
+            self.feed_list = self.get_source_feeds()
+        else:
+            self.feed_list = None
 
+        self.collections = self.get_source_collections()
         self.source_issues = []
 
     def __repr__(self):
@@ -78,6 +85,8 @@ class Source():
         mc_client = mc_api.DirectoryApi(config.mc_api_token)
         return mc_client.collection_list(source_id=self.source_data.id)["results"]
 
+
+    #### Source Volume concerns
 
     def get_source_volume(self):
         mc_client = mc_api.SearchApi(config.mc_api_token)
@@ -97,9 +106,30 @@ class Source():
         return SourceVolumePayload(volumes)
 
 
+    def source_volume_issues(self, include_tags=None, exclude_tags=None):
+        return SourceVolumeIssue.calculate_all(self.source_volume, include_tags=include_tags, exclude_tags=exclude_tags)
+
+    #### Source Feed concerns
+
+    def get_source_feeds(self):
+        mc_client = mc_api.DirectoryApi(config.mc_api_token)
+        feeds = mc_client.feed_list(source_id=self.source_data.id, return_details=True)["results"]
+        return [FeedPayload(f) for f in feeds]
+
+
+    def source_feed_issues(self, include_tags=None, exclude_tags=None):
+        
+        for feed in self.feed_list:
+            feed.issues = FeedIssue.calculate_all(feed, include_tags=include_tags, exclude_tags=exclude_tags)
+        return [feed for feed in self.feed_list if feed.issues is not []]
+            
+
     def find_issues(self, include_tags=None, exclude_tags=None):
         self.source_issues = SourceIssue.calculate_all(self.source_data, include_tags=include_tags, exclude_tags=exclude_tags)
-
+        if self.source_volume is not None:
+            self.source_volume_issues = self.source_volume_issues(include_tags=include_tags, exclude_tags=exclude_tags)
+        if self.feed_list is not None:
+            self.feed_issues = self.source_feed_issues(include_tags=include_tags, exclude_tags=exclude_tags)
 
     def render_template(self):
         if not self.source_issues:
