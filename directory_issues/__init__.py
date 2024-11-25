@@ -29,7 +29,22 @@ class Config(BaseSettings):
 
 config = Config()
 
-zammad_client = ZammadClient()
+
+try:
+    zammad_client = ZammadClient()
+except:
+    logger.warning("No zammad client configuration found, zammad_client calls will fail ")
+    zammad_client = None
+
+
+class Feed():
+    """
+    Issue detection for a single feed
+    """
+
+    def __init__(self):
+        pass
+
 
 class Source():
     """
@@ -44,7 +59,7 @@ class Source():
 
 
     def __init__(self, data: dict, skip_volume: bool = True):
-        
+
         self.source_data = SourcePayload(data)
         if(not skip_volume):
             self.source_volume = self.get_source_volume()
@@ -112,6 +127,9 @@ class Source():
 
 
     def post_zammad_issue(self, send_email=False):
+        if zammad_client == None:
+            raise RuntimeError("Attempting to post zammad issue without zammad client configuration")
+
         message = self.render_template()
         if(len(self.source_issues) == 0):
             logger.info(f"Skipping source {self.source_data.id}, no issues detected")
