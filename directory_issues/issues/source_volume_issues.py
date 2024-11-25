@@ -12,7 +12,7 @@ class SourceVolumeIssue(IssueBase["SourceVolumePayload"]):
 class RecentVolumeZero(SourceVolumeIssue):   
 
     def calculate(self, payload:SourceVolumePayload):
-        if payload.system_status != "Working":
+        if payload.recent_volume == 0:
             return True, {"name":payload.name}
         
         return False, None
