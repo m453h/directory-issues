@@ -55,6 +55,7 @@ class ZammadClient():
             source_id:int,
             collections:str,
             send_email:bool=False,
+            state="open"
             ):
 
         #Get the id of the exiting ticket for this source:
@@ -80,7 +81,7 @@ class ZammadClient():
                 "content_type":"text/html",
                 "internal": False
             },
-            "state":"open", #Always open tickets when adding issues
+            "state":state, #Always open tickets when adding issues
             "send_email":send_email
         }
         return self.client.ticket.update(id=ticket_id, params=params)

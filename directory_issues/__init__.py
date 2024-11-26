@@ -140,6 +140,9 @@ class Source():
         for issue in self.source_issues:
             primary_tag = issue['tags'][0] if issue['tags'] else 'no_tag'
             grouped_issues[primary_tag].append(issue['template'])
+
+        if(len(self.source_issues) == 0):
+            grouped_issues["no-issues"] = ["No issues detected for this source"]
         
         link = f"https://search.mediacloud.org/sources/{self.source_data.id}"
 
@@ -162,8 +165,9 @@ class Source():
 
         message = self.render_template()
         if(len(self.source_issues) == 0):
-            logger.info(f"Skipping source {self.source_data.id}, no issues detected")
-            return 
+            state="closed"
+        else:
+            state="open"
 
         collections_str = ", ".join(str(c["id"]) for c in self.collections)
         zammad_client.source_article(
@@ -171,7 +175,8 @@ class Source():
                 self.source_data.label,
                 self.source_data.id,
                 collections_str,
-                send_email = send_email
+                send_email = send_email,
+                state=state
             )
 
 
