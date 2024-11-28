@@ -94,7 +94,6 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
         else:
             logger.info("All sources have been updated, exiting...")
 
-
     def export_sources_to_file(self):
         sources = self.select("sources")
         data = []
@@ -105,8 +104,7 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
 
         with open(f"{JSON_DUMP_PATH}/lni_sources.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
-        logger.info("Data has been written to file")
-
+        logger.info("Data has been written to a file")
 
     def main(self):
         super().main()
