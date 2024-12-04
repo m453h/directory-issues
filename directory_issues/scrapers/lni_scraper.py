@@ -64,13 +64,16 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
             params = {"q": quote(query)}
             response = self.scraper.get(URLs.get("SEARCH_ENGINE_URL"), params=params)
             soup = BeautifulSoup(response.text, features="lxml")
-            first_result_div = soup.find('div', class_='result')
-            if first_result_div:
-                extras_url_div = first_result_div.find('div', class_='result__extras__url')
+            results = soup.find_all('div', class_='result')
+
+            for result_div in results:
+                extras_url_div = result_div.find('div', class_='result__extras__url')
                 if extras_url_div:
                     link = extras_url_div.find('a', class_='result__url')
                     if link:
-                        return link.text.strip()
+                        link_text = link.text.strip()
+                        if "facebook" not in link_text and "wikipedia" not in link_text:
+                            return link_text
         except Exception as e:
             logger.exception(e)
 
@@ -80,7 +83,7 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
         sources = self.select("sources", where="url IS NULL")
         if len(sources) > 0:
             for source in sources:
-                search_string = f"{source.get('media_name')} {source.get('state')} {source.get('county')}"
+                search_string = f"{self.get_state_name(source.get('state'))} {source.get('county')} {source.get('media_name')} newspaper official website"
                 logging.info("Attempting to fetch url for: %s - %s", source.get("id"), search_string)
                 source_url = self.fetch_source_url(search_string)
                 if source_url:
@@ -114,6 +117,63 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
             self.fetch_source_metadata()
         elif self.data_to_scrape == "export":
             self.export_sources_to_file()
+
+
+    def get_state_name(self, abbreviation):
+        states = {
+                    "AL": "Alabama",
+                    "AK": "Alaska",
+                    "AZ": "Arizona",
+                    "AR": "Arkansas",
+                    "CA": "California",
+                    "CO": "Colorado",
+                    "CT": "Connecticut",
+                    "DE": "Delaware",
+                    "DC": "District of Columbia",
+                    "FL": "Florida",
+                    "GA": "Georgia",
+                    "HI": "Hawaii",
+                    "ID": "Idaho",
+                    "IL": "Illinois",
+                    "IN": "Indiana",
+                    "IA": "Iowa",
+                    "KS": "Kansas",
+                    "KY": "Kentucky",
+                    "LA": "Louisiana",
+                    "ME": "Maine",
+                    "MT": "Montana",
+                    "NE": "Nebraska",
+                    "NV": "Nevada",
+                    "NH": "New Hampshire",
+                    "NJ": "New Jersey",
+                    "NM": "New Mexico",
+                    "NY": "New York",
+                    "NC": "North Carolina",
+                    "ND": "North Dakota",
+                    "OH": "Ohio",
+                    "OK": "Oklahoma",
+                    "OR": "Oregon",
+                    "MD": "Maryland",
+                    "MA": "Massachusetts",
+                    "MI": "Michigan",
+                    "MN": "Minnesota",
+                    "MS": "Mississippi",
+                    "MO": "Missouri",
+                    "PA": "Pennsylvania",
+                    "RI": "Rhode Island",
+                    "SC": "South Carolina",
+                    "SD": "South Dakota",
+                    "TN": "Tennessee",
+                    "TX": "Texas",
+                    "UT": "Utah",
+                    "VT": "Vermont",
+                    "VA": "Virginia",
+                    "WA": "Washington",
+                    "WV": "West Virginia",
+                    "WI": "Wisconsin",
+                    "WY": "Wyoming"
+                }
+        return states.get(abbreviation.upper(), abbreviation)
 
 
 if __name__ == "__main__":
