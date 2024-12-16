@@ -2,11 +2,12 @@ import json
 import logging
 import os
 from time import sleep
+from urllib.parse import quote, urljoin
+
+from bs4 import BeautifulSoup
 
 from utils.database import SQLiteMixin
 from utils.scraper import BaseScraper
-from urllib.parse import quote, urljoin
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO,
@@ -43,6 +44,7 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
             'fips': 'TEXT',
             'url': 'TEXT'
         })
+
 
     def fetch_sources(self):
         response = self.scraper.get(urljoin(self.base_url, URLs.get("SOURCES_LIST")))
@@ -117,9 +119,11 @@ class LocalNewsInitiativeScraper(SQLiteMixin, BaseScraper):
             self.fetch_source_metadata()
         elif self.data_to_scrape == "export":
             self.export_sources_to_file()
+        else:
+            logger.info("Usage: python lni_scraper.py <command>, Available commands: sources, metadata, export")
 
-
-    def get_state_name(self, abbreviation):
+    @staticmethod
+    def get_state_name(abbreviation):
         states = {
                     "AL": "Alabama",
                     "AK": "Alaska",
