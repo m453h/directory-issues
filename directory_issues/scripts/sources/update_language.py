@@ -6,6 +6,7 @@ from directory_issues.scripts.sources.base import SourcesBase, MediaCloudClient
 
 logger = logging.getLogger(__name__)
 
+DAYS_BACK = 365
 
 class SourceLanguage(SourcesBase):
     def __init__(self, client):
@@ -24,7 +25,7 @@ class SourceLanguage(SourcesBase):
             Optional[str]: The primary language of the source or None if not enough data.
         """
         query = f"canonical_domain:{domain}"
-        start_date = dt.datetime.now() - dt.timedelta(days=365)
+        start_date = dt.datetime.now() - dt.timedelta(days=DAYS_BACK)
         end_date = dt.datetime.now()
 
         results = self.client.provider._overview_query(query, start_date, end_date)

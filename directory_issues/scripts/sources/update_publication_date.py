@@ -2,6 +2,11 @@ import datetime as dt
 from typing import Optional
 from directory_issues.scripts.sources.base import SourcesBase, MediaCloudClient
 
+# Set earliest ingest date to 2000
+START_DATE_YEAR = 2000
+START_DATE_MONTH = 1
+START_DATE_DAY = 1
+
 
 class SourcesPublicationDate(SourcesBase):
     def __init__(self, client):
@@ -13,7 +18,7 @@ class SourcesPublicationDate(SourcesBase):
     ) -> Optional[dt.datetime]:
         """Analyze a single source to get its first publication date."""
         query = f"canonical_domain:{domain}"
-        start_date = dt.datetime(2000, 1, 1)
+        start_date = dt.datetime(START_DATE_YEAR, START_DATE_MONTH, START_DATE_DAY)
         end_date = dt.datetime.now()
 
         results = self.client.provider._overview_query(query, start_date, end_date)
