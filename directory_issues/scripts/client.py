@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 import mediacloud.api as mc_api
 from dotenv import load_dotenv
-from typing import Optional, List
+from typing import Generator, Optional, List
 from mc_providers import provider_for, PLATFORM_ONLINE_NEWS, PLATFORM_SOURCE_MEDIA_CLOUD
 
 
@@ -31,33 +31,19 @@ class MediaCloudClient:
             PLATFORM_ONLINE_NEWS, PLATFORM_SOURCE_MEDIA_CLOUD, base_url=self.base_url
         )
 
-    def get_all_sources(
-        self, platform: Optional[str] = None, batch_size: int = 1000
-    ) -> List[str]:
-        offset = 0
-        all_sources = []
+    def get_sources(
+        self, platform: Optional[str] = None, batch_size: int = 100, offset: int = 0
+    ) -> Generator[List[str], None, None]:
+        try:
+            response = self.directory_client.source_list(
+                platform=platform, limit=batch_size, offset=offset
+            )
+            sources = [source["name"] for source in response.get("results", [])]
+            yield sources
 
-        response = self.directory_client.source_list(
-            platform=platform, limit=1, offset=0
-        )
-        total_count = response.get("count", 0)
+            offset += batch_size
+            print(f"Fetched batch of {len(sources)} sources. Total offset: {offset}")
 
-        logger.info(f"Fetching {total_count} sources...")
-
-        while offset < total_count:
-            try:
-                response = self.directory_client.source_list(
-                    platform=platform, limit=batch_size, offset=offset
-                )
-
-                sources = [source["name"] for source in response.get("results", [])]
-                all_sources.extend(sources)
-
-                logger.info(f"Fetched {len(all_sources)}/{total_count} sources")
-                offset += batch_size
-
-            except Exception as e:
-                logger.error(f"Error fetching sources at offset {offset}: {str(e)}")
-                raise
-
-        return all_sources
+        except Exception as e:
+            print(f"Error fetching sources: {str(e)}")
+            raise

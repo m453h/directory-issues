@@ -4,7 +4,9 @@ from directory_issues.scripts.sources.base import SourcesBase, MediaCloudClient
 
 
 class SourcesPublicationDate(SourcesBase):
-    result_column = "first_publication_date"
+    def __init__(self, client):
+        super().__init__(client)
+        self.result_column = "first_publication_date"
 
     def analyze_source(
         self, domain: str, min_story_count: int = 100
@@ -14,9 +16,11 @@ class SourcesPublicationDate(SourcesBase):
         start_date = dt.datetime(2000, 1, 1)
         end_date = dt.datetime.now()
 
-        results = self.provider._overview_query(query, start_date, end_date)
+        results = self.client.provider._overview_query(query, start_date, end_date)
 
-        if results["total"] <= min_story_count or self.provider._is_no_results(results):
+        if results["total"] <= min_story_count or self.client.provider._is_no_results(
+            results
+        ):
             return None
 
         publication_dates = [
@@ -30,6 +34,5 @@ if __name__ == "__main__":
     client = MediaCloudClient()
     pub_date_analyzer = SourcesPublicationDate(client)
     pub_results = pub_date_analyzer.process_sources(
-        platform="online_news", batch_size=100, file_name="publication_date"
+        platform="online_news", batch_size=10000, file_name="publication_date"
     )
-
