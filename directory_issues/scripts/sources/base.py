@@ -6,6 +6,7 @@ from typing import Optional, Any, Dict, List
 from directory_issues.scripts.client import MediaCloudClient
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class SourcesBase:
@@ -92,6 +93,7 @@ class CollectionsBase:
         sources = []
         offset = 0
         while True:
+            logger.info("Fetching sources, offset [%s]", offset)
             if collection_id is None:
                 response = self.client.directory_client.source_list(offset=offset, limit=limit)
             else:
@@ -101,6 +103,7 @@ class CollectionsBase:
             if response["next"] is None:
                 break
             offset += len(response["results"])
+        logger.info("Fetched a total of [%s] sources", len(sources))
         return sources
 
     def write_output(self, file_name, data):

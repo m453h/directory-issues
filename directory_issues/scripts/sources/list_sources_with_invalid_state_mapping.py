@@ -1,9 +1,13 @@
 import os
 import mediacloud.api
+import logging
 from directory_issues.scripts.sources.base import CollectionsBase, MediaCloudClient
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-LIMIT = 1000
+LIMIT = 100000
+
 
 class CollectionStates(CollectionsBase):
 
@@ -31,6 +35,7 @@ class CollectionStates(CollectionsBase):
         self.sources_lookup = {}  # Used to determine the collection ids of a given source e.g. [Source ID] -> Collection_ids ?
     
     def set_lookup_data(self):
+        logger.info("Setting up lookup data")
         collections = self.client.directory_client.collection_list(name="United States")["results"]
         for collection in collections:
             name_part = collection["name"].split(
@@ -44,7 +49,7 @@ class CollectionStates(CollectionsBase):
 
                     # Get sources under a collection and build the sources lookup dict
                     collection_sources = self.get_sources_in_collection(collection["id"], LIMIT)
-                        
+
                     for source in collection_sources:
                         # The assumption is a source can appear in more than one collection
                         if source["id"] in self.sources_lookup:
@@ -56,6 +61,7 @@ class CollectionStates(CollectionsBase):
         self.set_lookup_data()
 
         # Get all sources
+        logger.info("Fetchin all sources...")
         sources = self.get_sources_in_collection(None, LIMIT)
 
         # Check if all US sources with a `pub_state` are in the right collection
@@ -69,11 +75,13 @@ class CollectionStates(CollectionsBase):
                     for collection_id in collection_ids:
                         state_code = self.states_code_lookup[collection_id]
                         if not state_code:
-                            sources_in_wrong_collection.append([item['id'], item['label'], item['homepage'], item['pub_state'],
-                                 self.collection_lookup.get(item['pub_state'])])
+                            logger.info("Adding source with [%s] to sources_in_wrong_collection list", source["id"])
+                            sources_in_wrong_collection.append([source['id'], source['label'], source['homepage'], source['pub_state'],
+                                 self.collection_lookup.get(source['pub_state'])])
                 else:
-                    sources_not_in_any_collection.append([item['id'], item['label'], item['homepage'], item['pub_state'],
-                                 self.collection_lookup.get(item['pub_state'])])
+                    logger.info("Adding source with [%s] to sources_not_in_any_collection list", source["id"])
+                    sources_not_in_any_collection.append([source['id'], source['label'], source['homepage'], source['pub_state'],
+                                 self.collection_lookup.get(source['pub_state'])])
         
         self.write_output("sources_in_wrong_collection.csv", sources_in_wrong_collection)
         self.write_output("sources_not_in_any_collection.csv", sources_not_in_any_collection)

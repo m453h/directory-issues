@@ -5,6 +5,7 @@ import logging
 from directory_issues.scripts.sources.base import CollectionsBase, MediaCloudClient
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class CollectionsPartisanship(CollectionsBase):
@@ -15,6 +16,7 @@ class CollectionsPartisanship(CollectionsBase):
         self.collection_ids = ids
 
     def set_lookup_data(self):
+        logger.info("Setting up lookup data")
         self.collection_lookup = {}
         for collection_id in collection_ids:
             collection = self.client.directory_client.collection(collection_id)
@@ -26,6 +28,7 @@ class CollectionsPartisanship(CollectionsBase):
         for collection_id in self.collection_ids:
             sources = self.get_sources_in_collection(collection_id)
             for source in sources:
+                logger.info("Adding source with [%s] to sources_tracker", source["id"])
                 if sources_tracker.get(source["id"]):
                     sources_tracker[source["id"]]['collection_ids'].append(collection_id)
                 else:
@@ -34,19 +37,22 @@ class CollectionsPartisanship(CollectionsBase):
         data = [["source_id", "label", 'homepage', 'collection_ids', 'collection_names']]
         for item, value in sources_tracker.items():
             if len(value.get("collection_ids")) > 1:
+                logger.info("Adding source [%s] to output list", source["id"])
                 collection_ids = value.get("collection_ids")
                 collection_names = []
                 
                 # Get the names of the collections
                 for collection_id in collection_ids:
                     collection_names.append(self.collection_lookup.get(collection_id))
-                
+
                 data.append([
                     value.get("source").get("id"), 
                     value.get("source").get("name"), 
                     value.get("source").get("homepage"), 
                     ';'.join(collection_ids), 
                     ';'.join(collection_names)])
+       
+        logger.info("Writting output file...")
         self.write_output("sources_in_multi_partisanship_collections.csv", data)
 
     
