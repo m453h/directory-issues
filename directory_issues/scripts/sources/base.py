@@ -110,7 +110,6 @@ class CollectionsBase:
                         timestamp_str = cache_content["timestamp"]
                         cached_time = datetime.fromisoformat(timestamp_str)
                         now = datetime.now()
-
                         if now < (cached_time + cache_duration):
                             logger.info("Cache is fresh (fetched at %s). Using cache.", cached_time)
                             cached_sources = cache_content["data"]

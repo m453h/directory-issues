@@ -65,7 +65,7 @@ class CollectionStates(CollectionsBase):
         sources = self.get_sources_in_collection(None, LIMIT)
 
         # Check if all US sources with a `pub_state` are in the right collection
-        headers = ['source_id', 'label', 'homepage', 'pub_state', 'correct_collection_id']
+        headers = ['source_id', 'label', 'homepage', 'pub_state','stories_per_week', 'current_collection_id', 'correct_collection_id']
         sources_in_wrong_collection = [headers.copy()]
         sources_not_in_any_collection = [headers.copy()]
         for source in sources:
@@ -77,11 +77,11 @@ class CollectionStates(CollectionsBase):
                         if not state_code:
                             logger.info("Adding source with [%s] to sources_in_wrong_collection list", source["id"])
                             sources_in_wrong_collection.append([source['id'], source['label'], source['homepage'], source['pub_state'],
-                                 self.collection_lookup.get(source['pub_state'])])
+                                 source['stories_per_week'], self.collection_lookup.get(source['pub_state'], collection_id)])
                 else:
                     logger.info("Adding source with [%s] to sources_not_in_any_collection list", source["id"])
                     sources_not_in_any_collection.append([source['id'], source['label'], source['homepage'], source['pub_state'],
-                                 self.collection_lookup.get(source['pub_state'])])
+                                 source['stories_per_week'], self.collection_lookup.get(source['pub_state']), ''])
         
         self.write_output("sources_in_wrong_collection.csv", sources_in_wrong_collection)
         self.write_output("sources_not_in_any_collection.csv", sources_not_in_any_collection)
@@ -91,3 +91,4 @@ if __name__ == "__main__":
     client = MediaCloudClient()
     app = CollectionStates(client) 
     app.run_process()
+    sources = app.get_sources_in_collection(None,100000)
