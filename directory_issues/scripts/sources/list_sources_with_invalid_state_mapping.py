@@ -65,7 +65,7 @@ class CollectionStates(CollectionsBase):
         sources = self.get_sources_in_collection(None, LIMIT)
 
         # Check if all US sources with a `pub_state` are in the right collection
-        headers = ['source_id', 'label', 'homepage', 'pub_state','stories_per_week', 'current_collection_id', 'correct_collection_id']
+        headers = ['source_id', 'label', 'homepage', 'pub_state','stories_per_week', 'correct_collection_id', 'current_collection_id']
         sources_in_wrong_collection = [headers.copy()]
         sources_not_in_any_collection = [headers.copy()]
         for source in sources:
