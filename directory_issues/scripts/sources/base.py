@@ -1,4 +1,7 @@
 import csv
+import json
+import os
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import logging
@@ -7,6 +10,9 @@ from directory_issues.scripts.client import MediaCloudClient
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+CACHE_DIR = '/tmp/directory_issues'
+HOURS_TO_CACHE = 5 # Hours
 
 
 class SourcesBase:
@@ -90,21 +96,65 @@ class CollectionsBase:
         self.collection_lookup = {}  # Used to determine the collection_id of a given state collection e.g. [Massachusetts, United States - State & Local] -> [ US-MA ] -> collection_id ?
   
     def get_sources_in_collection(self, collection_id, limit=1000):
-        sources = []
         offset = 0
-        while True:
-            logger.info("Fetching sources, offset [%s]", offset)
-            if collection_id is None:
-                response = self.client.directory_client.source_list(offset=offset, limit=limit)
-            else:
-                response = self.client.directory_client.source_list(collection_id=collection_id, offset=offset,
-                                                                    limit=limit)
-            sources += response["results"]
-            if response["next"] is None:
-                break
-            offset += len(response["results"])
-        logger.info("Fetched a total of [%s] sources", len(sources))
-        return sources
+        cache_file = f"{CACHE_DIR}/collection-{collection_id}.json"
+        cached_sources = None
+        cache_valid = False
+        cache_duration = timedelta(hours=HOURS_TO_CACHE)
+
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r') as f:
+                    cache_content = json.load(f)
+                    if isinstance(cache_content, dict) and "timestamp" in cache_content and "data" in cache_content:
+                        timestamp_str = cache_content["timestamp"]
+                        cached_time = datetime.fromisoformat(timestamp_str)
+                        now = datetime.now()
+
+                        if now < (cached_time + cache_duration):
+                            logger.info("Cache is fresh (fetched at %s). Using cache.", cached_time)
+                            cached_sources = cache_content["data"]
+                            cache_valid = True
+                        else:
+                            logger.info("Cache is stale (fetched at %s). Fetching new data.", cached_time)
+            except (json.JSONDecodeError, IOError, ValueError):
+                logger.exception("Error reading or parsing cache file:. Fetching new data.")
+
+        if cache_valid and cached_sources is not None:
+            logger.info("Fetched a total of [%s] cached sources", len(cached_sources))
+            return cached_sources
+        else:
+            sources = []
+            while True:
+                logger.info("Fetching sources, offset [%s]", offset)
+                if collection_id is None:
+                    response = self.client.directory_client.source_list(offset=offset, limit=limit)
+                else:
+                    response = self.client.directory_client.source_list(collection_id=collection_id, offset=offset,
+                                                                        limit=limit)
+                sources += response["results"]
+                if response["next"] is None:
+                    break
+                offset += len(response["results"])
+
+            logger.info("Fetched a total of [%s] sources", len(sources))
+
+            fetch_time = datetime.now()
+            cache_content_to_save = {
+                "timestamp": fetch_time.isoformat(),
+                "data": sources
+            }
+
+            os.makedirs(CACHE_DIR, exist_ok=True)
+
+            try:
+                with open(cache_file, 'w') as f:
+                    json.dump(cache_content_to_save, f, indent=4)
+                logger.info("Data fetched successfully and saved to cache file: %s",cache_file)
+            except IOError:
+                logger.exception("Error writing to cache file")
+
+            return sources
 
     def write_output(self, file_name, data):
         with open(file_name, mode='w', newline='') as file:
